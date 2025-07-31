@@ -193,7 +193,7 @@ public async Task<IActionResult> UpdateProfile([FromForm] UpdateUserProfileDto d
 
     private async Task SendVerificationEmail(User user)
     {
-        var frontendBaseUrl = "http://localhost:3000";
+        var frontendBaseUrl = "https://matchboxd-frontend-ej4biv7ps-mazhar-altincays-projects.vercel.app";
         var verificationLink = $"{frontendBaseUrl}/verify-email?token={user.VerificationToken}";
         await _emailService.SendVerificationEmailAsync(user.Email, user.Username, verificationLink);
     }
