@@ -21,7 +21,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy(MyAllowSpecificOrigins,
         policy =>
         {
-            policy.WithOrigins("https://matchboxd-frontend-ej4biv7ps-mazhar-altincays-projects.vercel.app")
+            policy.WithOrigins("https://matchboxd-frontend.vercel.app")
                 .AllowAnyHeader()
                 .AllowAnyMethod()
                 .AllowCredentials();
