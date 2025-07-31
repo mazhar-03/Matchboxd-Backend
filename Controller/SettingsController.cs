@@ -1,4 +1,6 @@
 ﻿using System.Security.Claims;
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
 using Matchboxd.API.DAL;
 using Matchboxd.API.Dtos;
 using Matchboxd.API.Models;
@@ -217,17 +219,42 @@ public async Task<IActionResult> UpdateProfile([FromForm] UpdateUserProfileDto d
             if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
         }
 
-        // Save new image
-        var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/uploads/profiles");
-        if (!Directory.Exists(uploadsDir)) Directory.CreateDirectory(uploadsDir);
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json")
+            .Build();
 
-        var uniqueName = $"{Guid.NewGuid()}{extension}";
-        var filePath = Path.Combine(uploadsDir, uniqueName);
+        var cloudinaryAccount = new Account(
+            configuration["Cloudinary:CloudName"],
+            configuration["Cloudinary:ApiKey"],
+            configuration["Cloudinary:ApiSecret"]);
 
-        using var stream = new FileStream(filePath, FileMode.Create);
-        await file.CopyToAsync(stream);
+        var cloudinary = new Cloudinary(cloudinaryAccount);
 
-        return (true, $"/uploads/profiles/{uniqueName}", null);
+        var uploadParams = new ImageUploadParams()
+        {
+            File = new FileDescription(file.FileName, file.OpenReadStream()),
+            PublicId = $"profiles/{Guid.NewGuid()}",
+            Folder = "matchboxd/profiles" // Optional: better organization
+        };
+
+        try
+        {
+            var uploadResult = await cloudinary.UploadAsync(uploadParams);
+        
+            if (uploadResult.Error != null)
+            {
+                _logger.LogError("Cloudinary upload error: {Error}", uploadResult.Error.Message);
+                return (false, null, "Image upload failed");
+            }
+
+            return (true, uploadResult.SecureUrl.ToString(), null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Cloudinary upload exception");
+            return (false, null, "Image upload failed");
+        }
     }
 
     private string GetFullImageUrl(string? relativePath)

@@ -6,6 +6,7 @@ using Matchboxd.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -74,6 +75,23 @@ builder.Services.AddControllers();
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+// Add this near the top of your Program.cs
+var storagePath = Environment.GetEnvironmentVariable("RENDER_STORAGE_PATH") ?? "wwwroot";
+var uploadsPath = Path.Combine(storagePath, "uploads");
+
+// Ensure the uploads directory exists
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+
+// Configure static files
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads"
+});
 
 app.UseHttpsRedirection();
 app.UseCors(MyAllowSpecificOrigins);
