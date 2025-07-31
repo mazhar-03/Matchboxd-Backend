@@ -2,7 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 
 namespace Matchboxd.API.Controller;
-
+[ApiController]
+[Route("api/[controller]")]
 public class MatchImportController : ControllerBase
 {
     private readonly MatchImportService _importService;
