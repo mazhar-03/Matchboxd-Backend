@@ -86,7 +86,7 @@ public class AuthController : ControllerBase
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        var frontendBaseUrl = "https://matchboxd-frontend-ej4biv7ps-mazhar-altincays-projects.vercel.app/";
+        var frontendBaseUrl = "https://matchboxd-frontend-ej4biv7ps-mazhar-altincays-projects.vercel.app";
         var verificationLink = $"{frontendBaseUrl}/verify-email?token={user.VerificationToken}";
 
         await _emailService.SendVerificationEmailAsync(user.Email, user.Username, verificationLink);
@@ -134,7 +134,7 @@ public class AuthController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        var frontendBaseUrl = "https://matchboxd-frontend-ej4biv7ps-mazhar-altincays-projects.vercel.app/";
+        var frontendBaseUrl = "https://matchboxd-frontend-ej4biv7ps-mazhar-altincays-projects.vercel.app";
         var verificationLink = $"{frontendBaseUrl}/verify-email?token={user.VerificationToken}";
 
         await _emailService.SendVerificationEmailAsync(user.Email, user.Username, verificationLink);
