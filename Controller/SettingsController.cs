@@ -21,14 +21,16 @@ public class SettingsController : ControllerBase
     private readonly PasswordHasher<User> _passwordHasher = new();
     private readonly ITokenService _tokenService;
     private readonly ILogger<SettingsController> _logger;
+    private readonly CloudinaryService _cloudinaryService;
 
     public SettingsController(AppDbContext context, ITokenService tokenService, EmailService emailService,
-        ILogger<SettingsController> logger)
+        ILogger<SettingsController> logger, CloudinaryService cloudinaryService)
     {
         _context = context;
         _tokenService = tokenService;
         _emailService = emailService;
         _logger = logger;
+        _cloudinaryService = cloudinaryService;
     }
 
     [Authorize]
@@ -130,17 +132,28 @@ public async Task<IActionResult> UpdateProfile([FromForm] UpdateUserProfileDto d
         // 6. Update Profile Image
         if (dto.ProfileImage != null)
         {
-            var uploadResult = await UploadProfileImage(dto.ProfileImage, user.ProfileImageUrl);
-            if (!uploadResult.Success)
+            try
             {
-                _logger.LogWarning("Image upload failed: {Error}", uploadResult.Error);
-                return BadRequest(uploadResult.Error);
-            }
+                // Delete old image if exists
+                if (!string.IsNullOrEmpty(user.ProfileImageUrl))
+                {
+                    var oldPublicId = GetPublicIdFromUrl(user.ProfileImageUrl);
+                    await _cloudinaryService.DeleteImageAsync(oldPublicId);
+                }
+
+                // Upload new image
+                var uploadResult = await _cloudinaryService.UploadImageAsync(
+                    dto.ProfileImage, 
+                    "matchboxd/profiles");
             
-            user.ProfileImageUrl = uploadResult.FileUrl;
-            changesDetected = true;
-            _logger.LogInformation("Updated profile image from {Old} to {New}", 
-                originalValues.ProfileImage, uploadResult.FileUrl);
+                user.ProfileImageUrl = uploadResult.SecureUrl.ToString();
+                changesDetected = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update profile image");
+                return BadRequest("Failed to update profile image");
+            }
         }
 
         // 7. Save Changes
@@ -176,6 +189,12 @@ public async Task<IActionResult> UpdateProfile([FromForm] UpdateUserProfileDto d
 
 // --- Helper Methods --- //
 
+    private string GetPublicIdFromUrl(string url)
+    {
+        var uri = new Uri(url);
+        return Path.GetFileNameWithoutExtension(uri.AbsolutePath.Split('/').Last());
+    }
+
     private async Task<string?> UpdatePassword(User user, string currentPassword, string newPassword)
     {
         if (_passwordHasher.VerifyHashedPassword(user, user.PasswordHash, currentPassword)
@@ -199,63 +218,63 @@ public async Task<IActionResult> UpdateProfile([FromForm] UpdateUserProfileDto d
         var verificationLink = $"{frontendBaseUrl}/verify-email?token={user.VerificationToken}";
         await _emailService.SendVerificationEmailAsync(user.Email, user.Username, verificationLink);
     }
-
-    private async Task<(bool Success, string? FileUrl, string? Error)> UploadProfileImage(
-        IFormFile file, string? existingImagePath)
-    {
-        // Validate file
-        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif" };
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-
-        if (!allowedExtensions.Contains(extension))
-            return (false, null, "Invalid file type. Only JPG/PNG/GIF allowed.");
-
-        if (file.Length > 5 * 1024 * 1024) // 5MB
-            return (false, null, "File size exceeds 5MB limit.");
-
-        if (!string.IsNullOrEmpty(existingImagePath))
-        {
-            var oldPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", existingImagePath.TrimStart('/'));
-            if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
-        }
-
-        var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json")
-            .Build();
-
-        var cloudinaryAccount = new Account(
-            configuration["Cloudinary:CloudName"],
-            configuration["Cloudinary:ApiKey"],
-            configuration["Cloudinary:ApiSecret"]);
-
-        var cloudinary = new Cloudinary(cloudinaryAccount);
-
-        var uploadParams = new ImageUploadParams()
-        {
-            File = new FileDescription(file.FileName, file.OpenReadStream()),
-            PublicId = $"profiles/{Guid.NewGuid()}",
-            Folder = "matchboxd/profiles" // Optional: better organization
-        };
-
-        try
-        {
-            var uploadResult = await cloudinary.UploadAsync(uploadParams);
-        
-            if (uploadResult.Error != null)
-            {
-                _logger.LogError("Cloudinary upload error: {Error}", uploadResult.Error.Message);
-                return (false, null, "Image upload failed");
-            }
-
-            return (true, uploadResult.SecureUrl.ToString(), null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Cloudinary upload exception");
-            return (false, null, "Image upload failed");
-        }
-    }
+    //
+    // private async Task<(bool Success, string? FileUrl, string? Error)> UploadProfileImage(
+    //     IFormFile file, string? existingImagePath)
+    // {
+    //     // Validate file
+    //     var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif" };
+    //     var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+    //
+    //     if (!allowedExtensions.Contains(extension))
+    //         return (false, null, "Invalid file type. Only JPG/PNG/GIF allowed.");
+    //
+    //     if (file.Length > 5 * 1024 * 1024) // 5MB
+    //         return (false, null, "File size exceeds 5MB limit.");
+    //
+    //     if (!string.IsNullOrEmpty(existingImagePath))
+    //     {
+    //         var oldPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", existingImagePath.TrimStart('/'));
+    //         if (System.IO.File.Exists(oldPath)) System.IO.File.Delete(oldPath);
+    //     }
+    //
+    //     var configuration = new ConfigurationBuilder()
+    //         .SetBasePath(Directory.GetCurrentDirectory())
+    //         .AddJsonFile("appsettings.json")
+    //         .Build();
+    //
+    //     var cloudinaryAccount = new Account(
+    //         configuration["Cloudinary:CloudName"],
+    //         configuration["Cloudinary:ApiKey"],
+    //         configuration["Cloudinary:ApiSecret"]);
+    //
+    //     var cloudinary = new Cloudinary(cloudinaryAccount);
+    //
+    //     var uploadParams = new ImageUploadParams()
+    //     {
+    //         File = new FileDescription(file.FileName, file.OpenReadStream()),
+    //         PublicId = $"profiles/{Guid.NewGuid()}",
+    //         Folder = "matchboxd/profiles" // Optional: better organization
+    //     };
+    //
+    //     try
+    //     {
+    //         var uploadResult = await cloudinary.UploadAsync(uploadParams);
+    //     
+    //         if (uploadResult.Error != null)
+    //         {
+    //             _logger.LogError("Cloudinary upload error: {Error}", uploadResult.Error.Message);
+    //             return (false, null, "Image upload failed");
+    //         }
+    //
+    //         return (true, uploadResult.SecureUrl.ToString(), null);
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         _logger.LogError(ex, "Cloudinary upload exception");
+    //         return (false, null, "Image upload failed");
+    //     }
+    // }
 
     private string GetFullImageUrl(string? relativePath)
         => relativePath != null

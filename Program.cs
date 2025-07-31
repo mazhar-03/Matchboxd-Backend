@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text;
+using CloudinaryDotNet;
 using Matchboxd.API.DAL;
 using Matchboxd.API.Helpers.Options;
 using Matchboxd.API.Services;
@@ -44,6 +45,17 @@ builder.Services.Configure<JwtOptions>(jwtConfigData);
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<EmailService>();
 
+// Add this to your services
+builder.Services.AddSingleton<CloudinaryService>();
+
+// Configure Cloudinary
+var cloudinaryAccount = new Account(
+    builder.Configuration["Cloudinary:CloudName"],
+    builder.Configuration["Cloudinary:ApiKey"],
+    builder.Configuration["Cloudinary:ApiSecret"]);
+
+builder.Services.AddSingleton(new Cloudinary(cloudinaryAccount));
+
 // Add health check services
 builder.Services.AddHealthChecks()
     .AddNpgSql(con, name: "postgresql", tags: new[] { "database" });
@@ -75,23 +87,6 @@ builder.Services.AddControllers();
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
-
-// Add this near the top of your Program.cs
-var storagePath = Environment.GetEnvironmentVariable("RENDER_STORAGE_PATH") ?? "wwwroot";
-var uploadsPath = Path.Combine(storagePath, "uploads");
-
-// Ensure the uploads directory exists
-if (!Directory.Exists(uploadsPath))
-{
-    Directory.CreateDirectory(uploadsPath);
-}
-
-// Configure static files
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(uploadsPath),
-    RequestPath = "/uploads"
-});
 
 app.UseHttpsRedirection();
 app.UseCors(MyAllowSpecificOrigins);
